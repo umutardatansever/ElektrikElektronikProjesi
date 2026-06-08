@@ -32,7 +32,7 @@ jobs:
         uses: actions/configure-pages@v4
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install --legacy-peer-deps
         working-directory: dashboard
 
       - name: Build with Next.js

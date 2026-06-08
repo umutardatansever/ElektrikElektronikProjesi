@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Servo Motor Kontrol Paneli</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f5f4f0;
+      --surface: #ffffff;
+      --surface2: #f0efe9;
+      --border: rgba(0,0,0,0.10);
+      --border2: rgba(0,0,0,0.18);
+      --text: #1a1a18;
+      --text2: #6b6b66;
+      --text3: #9a9a94;
+      --accent: #185FA5;
+      --accent-light: #E6F1FB;
+      --green: #0F6E56;
+      --green-light: #E1F5EE;
+      --red: #A32D2D;
+      --red-light: #FCEBEB;
+      --amber: #BA7517;
+      --radius: 10px;
+      --radius-lg: 14px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1a1a18;
+        --surface: #232320;
+        --surface2: #2c2c29;
+        --border: rgba(255,255,255,0.08);
+        --border2: rgba(255,255,255,0.15);
+        --text: #f0efe9;
+        --text2: #9a9a94;
+        --text3: #6b6b66;
+        --accent: #85B7EB;
+        --accent-light: #042C53;
+        --green: #5DCAA5;
+        --green-light: #04342C;
+        --red: #F09595;
+        --red-light: #501313;
+        --amber: #FAC775;
+      }
+    }
+
+    body {
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 24px 20px;
+    }
+
+    .dash { max-width: 960px; margin: 0 auto; }
+
+    /* TOP BAR */
+    .top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .title-group h1 { font-size: 20px; font-weight: 600; color: var(--text); }
+    .title-group p  { font-size: 13px; color: var(--text2); margin-top: 3px; }
+
+    .status-pill {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 13px; color: var(--text2);
+      padding: 7px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--border2);
+      background: var(--surface);
+    }
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--text3);
+      transition: background 0.4s;
+    }
+    .status-dot.connected { background: var(--green); box-shadow: 0 0 0 3px var(--green-light); }
+    .status-dot.error     { background: var(--red);   box-shadow: 0 0 0 3px var(--red-light); }
+
+    /* METRICS */
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .metric {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+    }
+    .metric-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text3); margin-bottom: 6px; }
+    .metric-value { font-size: 26px; font-weight: 600; color: var(--text); line-height: 1; }
+    .metric-unit  { font-size: 14px; font-weight: 400; color: var(--text2); }
+
+    /* MAIN GRID */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+
+    /* GAUGE CARD */
+    .gauge-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .card-title {
+      font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em;
+      color: var(--text3); margin-bottom: 16px; align-self: flex-start;
+    }
+    .gauge-wrap { position: relative; width: 220px; height: 140px; }
+    .gauge-center {
+      position: absolute; bottom: 4px; left: 50%;
+      transform: translateX(-50%); text-align: center; pointer-events: none;
+    }
+    .gauge-deg  { font-size: 36px; font-weight: 700; color: var(--text); line-height: 1; }
+    .gauge-sub  { font-size: 12px; color: var(--text3); margin-top: 3px; }
+
+    .servo-vis {
+      margin-top: 20px; width: 100%;
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+    }
+    .servo-vis-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; }
+
+    .divider { width: 100%; height: 1px; background: var(--border); margin: 16px 0; }
+
+    /* DEMO TOGGLE */
+    .demo-row {
+      display: flex; align-items: center; justify-content: space-between;
+      width: 100%; font-size: 13px; color: var(--text2); cursor: pointer;
+    }
+    .toggle-sw {
+      width: 38px; height: 22px; border-radius: 999px;
+      background: var(--border2); position: relative; transition: background 0.2s; flex-shrink: 0;
+    }
+    .toggle-sw.on { background: var(--green); }
+    .toggle-knob {
+      position: absolute; top: 3px; left: 3px;
+      width: 16px; height: 16px; border-radius: 50%;
+      background: white; transition: left 0.2s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    }
+    .toggle-sw.on .toggle-knob { left: 19px; }
+
+    /* CONTROLS */
+    .controls { display: flex; gap: 8px; margin-top: 12px; width: 100%; }
+    .ctrl-btn {
+      flex: 1; padding: 8px 6px; font-size: 12px; cursor: pointer;
+      border-radius: var(--radius); border: 1px solid var(--border2);
+      background: transparent; color: var(--text2);
+      transition: background 0.15s, color 0.15s;
+    }
+    .ctrl-btn:hover { background: var(--surface2); color: var(--text); }
+
+    /* RIGHT COLUMN */
+    .right-col { display: flex; flex-direction: column; gap: 16px; }
+
+    .chart-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+    }
+    .chart-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .chart-header .card-title { margin-bottom: 0; }
+    .chart-header .update-ts { font-size: 12px; color: var(--text3); }
+    .chart-container { position: relative; height: 200px; }
+
+    /* RAW DATA */
+    .raw-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 16px 20px;
+    }
+    .raw-card .card-title { margin-bottom: 12px; }
+    .raw-bar-wrap { display: flex; align-items: center; gap: 10px; }
+    .raw-bar-bg {
+      flex: 1; height: 10px; border-radius: 999px;
+      background: var(--surface2); overflow: hidden;
+    }
+    .raw-bar-fill {
+      height: 100%; border-radius: 999px;
+      background: linear-gradient(90deg, var(--green), var(--accent));
+      transition: width 0.2s ease;
+    }
+    .raw-bar-val { font-size: 13px; font-weight: 600; color: var(--text); min-width: 38px; text-align: right; }
+    .raw-bar-label { font-size: 12px; color: var(--text3); margin-top: 5px; }
+
+    /* FOOTER */
+    .footer {
+      margin-top: 28px;
+      font-size: 12px; color: var(--text3);
+      text-align: center;
+      border-top: 1px solid var(--border);
+      padding-top: 16px;
+    }
+
+    @media (max-width: 680px) {
+      .main-grid { grid-template-columns: 1fr; }
+      .metrics { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+<div class="dash">
+
+  <!-- TOP BAR -->
+  <div class="top-bar">
+    <div class="title-group">
+      <h1>Servo Motor Kontrol Paneli</h1>
+      <p>Potansiyometre → Arduino → Backend → Arayüz &nbsp;|&nbsp; SG90 + Arduino Uno R3</p>
+    </div>
+    <div class="status-pill">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusText">Bağlanıyor...</span>
+    </div>
+  </div>
+
+  <!-- METRICS -->
+  <div class="metrics">
+    <div class="metric">
+      <div class="metric-label">Mevcut Açı</div>
+      <div class="metric-value"><span id="mAngle">—</span><span class="metric-unit"> °</span></div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">ADC Ham Değer</div>
+      <div class="metric-value"><span id="mRaw">—</span> <span class="metric-unit">/ 1023</span></div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Min Açı</div>
+      <div class="metric-value"><span id="mMin">—</span><span class="metric-unit"> °</span></div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Maks Açı</div>
+      <div class="metric-value"><span id="mMax">—</span><span class="metric-unit"> °</span></div>
+    </div>
+  </div>
+
+  <!-- MAIN GRID -->
+  <div class="main-grid">
+
+    <!-- LEFT: GAUGE + SERVO -->
+    <div class="gauge-card">
+      <div class="card-title">Açı Kadranı</div>
+      <div class="gauge-wrap">
+        <canvas id="gaugeCanvas" width="220" height="140"></canvas>
+        <div class="gauge-center">
+          <div class="gauge-deg" id="gaugeDeg">0°</div>
+          <div class="gauge-sub">derece</div>
+        </div>
+      </div>
+
+      <div class="servo-vis">
+        <div class="servo-vis-label">Servo Motor</div>
+        <canvas id="servoCanvas" width="220" height="130"></canvas>
+      </div>
+
+            <div class="demo-row" id="demoToggle">
+        <span>Demo modu (Simülasyon)</span>
+        <div class="toggle-sw on" id="toggleSw"><div class="toggle-knob"></div></div>
+      </div>
+
+      <div class="controls">
+        <button class="ctrl-btn" id="connectBtn" title="Arduino'ya USB üzerinden bağlan">🔌 Cihaza Bağlan</button>
+        <button class="ctrl-btn" id="clearBtn" title="Min/Maks sıfırla">⊘ Temizle</button>
+      </div>
+    </div>
+
+    <!-- RIGHT: CHART + RAW BAR -->
+    <div class="right-col">
+      <div class="chart-card">
+        <div class="chart-header">
+          <div class="card-title">Açı Geçmişi (Son 50 kayıt)</div>
+          <div class="update-ts" id="lastUpdate">—</div>
+        </div>
+        <div class="chart-container">
+          <canvas id="histChart" role="img" aria-label="Servo motor açı geçmişi zaman serisi">Servo motor açı geçmişi grafiği.</canvas>
+        </div>
+      </div>
+
+      <div class="raw-card">
+        <div class="card-title">ADC Ham Sinyal (0 – 1023)</div>
+        <div class="raw-bar-wrap">
+          <div class="raw-bar-bg">
+            <div class="raw-bar-fill" id="rawFill" style="width:50%"></div>
+          </div>
+          <div class="raw-bar-val" id="rawVal">512</div>
+        </div>
+        <div class="raw-bar-label">Potansiyometre: 0 (0°) → 1023 (180°) | 10-bit ADC çözünürlüğü ≈ 4.88 mV/adım</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    İstanbul Rumeli Üniversitesi &nbsp;·&nbsp; Bilgisayar Mühendisliği &nbsp;·&nbsp;
+    Potansiyometre Kontrollü Servo Motor Sistemi &nbsp;·&nbsp;
+    Bağlantı: <code>Web Serial API (Doğrudan USB)</code>
+  </div>
+</div>
+
+<script>
+  // ── Ayarlar ──────────────────────────────────────────────────────────────
+  const POLL_MS  = 200;
+
+  // ── Durum ────────────────────────────────────────────────────────────────
+  let isDemoMode  = true;
+  let demoAngle   = 90, demoDir = 1, demoInterval = null;
+  let minAngle    = Infinity, maxAngle = -Infinity;
+  let histChart   = null;
+  let fakeHistory = Array.from({ length: 20 }, (_, i) => ({
+    angle: Math.round(90 + 70 * Math.sin(i * 0.35)),
+    ts: Date.now() - (20 - i) * 200
+  }));
+
+  // Web Serial Durumu
+  let port = null;
+  let reader = null;
+  let keepReading = false;
+
+  // ── Yardımcılar ──────────────────────────────────────────────────────────
+  const isDark = () => matchMedia('(prefers-color-scheme: dark)').matches;
+  const $ = id => document.getElementById(id);
+
+  function setStatus(state) {
+    $('statusDot').className = 'status-dot ' + (state === 'connected' ? 'connected' : state === 'connecting' ? '' : 'error');
+    $('statusText').textContent =
+      state === 'connected' ? 'Arduino Bağlı' :
+      state === 'connecting' ? 'Bağlanıyor...' : 'Bağlantı Yok';
+  }
+
+  // ── Kadran ───────────────────────────────────────────────────────────────
+  function drawGauge(angle) {
+    const canvas = $('gaugeCanvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const cx = W / 2, cy = H - 8, r = 96;
+    ctx.clearRect(0, 0, W, H);
+
+    // arka track
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, Math.PI, 2 * Math.PI);
+    ctx.lineWidth = 14;
+    ctx.strokeStyle = isDark() ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)';
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    // renkli yay
+    if (angle > 0) {
+      const grad = ctx.createLinearGradient(cx - r, cy, cx + r, cy);
+      grad.addColorStop(0,   '#0F6E56');
+      grad.addColorStop(0.5, '#185FA5');
+      grad.addColorStop(1,   '#A32D2D');
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, Math.PI, Math.PI + (angle / 180) * Math.PI);
+      ctx.lineWidth = 14;
+      ctx.strokeStyle = grad;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+    }
+
+    // işaret çizgileri + etiketler
+    const tickCol = isDark() ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.18)';
+    const lblCol  = isDark() ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.38)';
+    for (let a = 0; a <= 180; a += 30) {
+      const rad = Math.PI + (a / 180) * Math.PI;
+      const cos = Math.cos(rad), sin = Math.sin(rad);
+      ctx.beginPath();
+      ctx.moveTo(cx + (r - 18) * cos, cy + (r - 18) * sin);
+      ctx.lineTo(cx + (r -  8) * cos, cy + (r -  8) * sin);
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = tickCol;
+      ctx.stroke();
+      ctx.fillStyle = lblCol;
+      ctx.font = '10px -apple-system, Helvetica, Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(a + '°', cx + (r - 32) * cos, cy + (r - 32) * sin);
+    }
+  }
+
+  // ── Servo görsel ─────────────────────────────────────────────────────────
+  function drawServo(angle) {
+    const canvas = $('servoCanvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+
+    const dark = isDark();
+    const bx = 70, by = 45, bw = 80, bh = 58;
+    const cx = bx + bw / 2, cy = by - 4;
+
+    // kablo delikleri
+    [[bx - 12, by + 10], [bx - 12, by + 36],
+     [bx + bw, by + 10], [bx + bw, by + 36]].forEach(([x, y]) => {
+      ctx.fillStyle = dark ? '#555' : '#c8c8c4';
+      ctx.beginPath();
+      ctx.roundRect(x, y, 13, 10, 3);
+      ctx.fill();
+    });
+
+    // gövde
+    ctx.fillStyle   = dark ? '#3a3a37' : '#d8d8d2';
+    ctx.strokeStyle = dark ? '#555' : '#b0b0aa';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, 7); ctx.fill(); ctx.stroke();
+
+    // iç panel
+    ctx.fillStyle   = dark ? '#2e2e2b' : '#c5c5be';
+    ctx.strokeStyle = dark ? '#444' : '#a8a8a2';
+    ctx.beginPath(); ctx.roundRect(bx + 7, by + 7, bw - 14, bh - 14, 4); ctx.fill(); ctx.stroke();
+
+    // şaft dairesi
+    ctx.fillStyle   = '#185FA5';
+    ctx.strokeStyle = dark ? '#0c3c7a' : '#0d4a8a';
+    ctx.lineWidth   = 1.5;
+    ctx.beginPath(); ctx.arc(cx, cy, 11, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
+
+    // kol
+    const rad   = ((angle - 90) * Math.PI) / 180;
+    const armL  = 52;
+    const ax = cx + armL * Math.sin(rad);
+    const ay = cy - armL * Math.cos(rad);
+
+    ctx.strokeStyle = dark ? '#d0d0cc' : '#444';
+    ctx.lineWidth   = 6;
+    ctx.lineCap     = 'round';
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(ax, ay); ctx.stroke();
+
+    // kol ucu noktası
+    ctx.fillStyle = '#E24B4A';
+    ctx.beginPath(); ctx.arc(ax, ay, 5.5, 0, 2 * Math.PI); ctx.fill();
+
+    // model etiketi
+    ctx.fillStyle = dark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.3)';
+    ctx.font = '11px -apple-system, Helvetica, Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('SG90', cx, by + bh + 15);
+  }
+
+  // ── Geçmiş grafiği ───────────────────────────────────────────────────────
+  function initChart() {
+    const ctx = $('histChart').getContext('2d');
+    const dark = isDark();
+    histChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Açı (°)',
+          data: [],
+          borderColor: '#185FA5',
+          backgroundColor: dark ? 'rgba(24,95,165,0.12)' : 'rgba(24,95,165,0.07)',
+          borderWidth: 2,
+          pointRadius: 0,
+          fill: true,
+          tension: 0.35
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 120 },
+        plugins: { legend: { display: false } },
+        scales: {
+          y: {
+            min: 0, max: 180,
+            ticks: {
+              color: dark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.38)',
+              font: { size: 11 }, stepSize: 30
+            },
+            grid: { color: dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }
+          },
+          x: {
+            ticks: {
+              color: dark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.32)',
+              font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 8
+            },
+            grid: { display: false }
+          }
+        }
+      }
+    });
+  }
+
+  function updateChart(history) {
+    if (!histChart) return;
+    histChart.data.labels   = history.map((_, i) => i + 1);
+    histChart.data.datasets[0].data = history.map(h => h.angle);
+    histChart.update('none');
+  }
+
+  // ── UI güncelle ──────────────────────────────────────────────────────────
+  function updateUI(angle, raw, history) {
+    angle = Math.round(angle);
+    raw   = (raw !== undefined) ? Math.round(raw) : Math.round((angle / 180) * 1023);
+
+    $('gaugeDeg').textContent = angle + '°';
+    $('mAngle').textContent   = angle;
+    $('mRaw').textContent     = raw;
+    $('rawVal').textContent   = raw;
+    $('rawFill').style.width  = ((raw / 1023) * 100).toFixed(1) + '%';
+
+    if (angle < minAngle) { minAngle = angle; $('mMin').textContent = angle; }
+    if (angle > maxAngle) { maxAngle = angle; $('mMax').textContent = angle; }
+
+    drawGauge(angle);
+    drawServo(angle);
+    if (history) updateChart(history);
+
+    $('lastUpdate').textContent = new Date().toLocaleTimeString('tr-TR');
+  }
+
+  // ── Seri Port (Web Serial) İşlemleri ─────────────────────────────────────
+  async function connectSerial() {
+    if (!("serial" in navigator)) {
+      alert("Tarayıcınız Web Serial API desteklemiyor. Lütfen Chrome, Edge veya Opera kullanın.");
+      return;
+    }
+
+    try {
+      setStatus('connecting');
+      port = await navigator.serial.requestPort();
+      await port.open({ baudRate: 9600 });
+      
+      setStatus('connected');
+      isDemoMode = false;
+      $('toggleSw').className = 'toggle-sw'; // Demo modu kapat
+      stopDemo();
+      
+      $('connectBtn').textContent = '🔌 Bağlantıyı Kes';
+      $('connectBtn').style.background = 'var(--red-light)';
+      $('connectBtn').style.color = 'var(--red)';
+      $('connectBtn').style.borderColor = 'var(--red)';
+
+      keepReading = true;
+      readSerial();
+    } catch (e) {
+      console.error(e);
+      setStatus('error');
+      port = null;
+      $('connectBtn').textContent = '🔌 Cihaza Bağlan';
+      $('connectBtn').style.background = 'transparent';
+      $('connectBtn').style.color = 'var(--text2)';
+      $('connectBtn').style.borderColor = 'var(--border2)';
+      if (e.name !== 'NotFoundError') {
+        alert("Bağlantı hatası: " + e.message);
+      }
+    }
+  }
+
+  async function disconnectSerial() {
+    keepReading = false;
+    if (reader) {
+      try {
+        await reader.cancel();
+      } catch (e) { console.error(e); }
+    }
+    if (port) {
+      try {
+        await port.close();
+      } catch (e) { console.error(e); }
+    }
+    port = null;
+    reader = null;
+    
+    setStatus('error');
+    $('connectBtn').textContent = '🔌 Cihaza Bağlan';
+    $('connectBtn').style.background = 'transparent';
+    $('connectBtn').style.color = 'var(--text2)';
+    $('connectBtn').style.borderColor = 'var(--border2)';
+  }
+
+  async function readSerial() {
+    while (port && port.readable && keepReading) {
+      const textDecoder = new TextDecoderStream();
+      const readableStreamClosed = port.readable.pipeTo(textDecoder.writable);
+      reader = textDecoder.readable.getReader();
+      let buffer = '';
+
+      try {
+        while (keepReading) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += value;
+          
+          let parts = buffer.split('\n');
+          buffer = parts.pop();
+          
+          for (let line of parts) {
+            line = line.trim();
+            if (line) {
+              let data = line.split(',');
+              if (data.length === 2) {
+                let angle = parseInt(data[0]);
+                let raw = parseInt(data[1]);
+                if (!isNaN(angle) && !isNaN(raw)) {
+                  fakeHistory.push({ angle: angle, ts: Date.now() });
+                  if (fakeHistory.length > 50) fakeHistory.shift();
+                  updateUI(angle, raw, fakeHistory);
+                }
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Seri port okuma hatası:", error);
+        setStatus('error');
+        break;
+      } finally {
+        try {
+          reader.releaseLock();
+          await readableStreamClosed.catch(() => {});
+        } catch (e) { console.error(e); }
+      }
+    }
+    if (port) {
+      disconnectSerial();
+    }
+  }
+
+  // ── Demo modu ────────────────────────────────────────────────────────────
+  function startDemo() {
+    setStatus('connected');
+    updateUI(demoAngle, Math.round((demoAngle / 180) * 1023), fakeHistory);
+    $('mMin').textContent = '0';
+    $('mMax').textContent = '180';
+
+    demoInterval = setInterval(() => {
+      demoAngle += demoDir * (1.5 + Math.random() * 3.5);
+      if (demoAngle >= 180) { demoAngle = 180; demoDir = -1; }
+      if (demoAngle <= 0)   { demoAngle = 0;   demoDir =  1; }
+      const raw = Math.round((demoAngle / 180) * 1023);
+      fakeHistory.push({ angle: Math.round(demoAngle), ts: Date.now() });
+      if (fakeHistory.length > 50) fakeHistory.shift();
+      updateUI(Math.round(demoAngle), raw, fakeHistory);
+    }, POLL_MS);
+  }
+
+  // ── Demo Kontrolleri ─────────────────────────────────────────────────────
+  function stopDemo() {
+    if (demoInterval) { clearInterval(demoInterval); demoInterval = null; }
+  }
+
+  // ── Toggle ────────────────────────────────────────────────────────────────
+  $('demoToggle').addEventListener('click', () => {
+    isDemoMode = !isDemoMode;
+    $('toggleSw').className = 'toggle-sw' + (isDemoMode ? ' on' : '');
+    if (isDemoMode) {
+      disconnectSerial();
+      startDemo();
+    } else {
+      stopDemo();
+      connectSerial();
+    }
+  });
+
+  // ── Butonlar ──────────────────────────────────────────────────────────────
+  $('connectBtn').addEventListener('click', () => {
+    if (port) {
+      disconnectSerial();
+    } else {
+      connectSerial();
+    }
+  });
+
+  $('clearBtn').addEventListener('click', () => {
+    minAngle = Infinity; maxAngle = -Infinity;
+    $('mMin').textContent = '—';
+    $('mMax').textContent = '—';
+  });
+
+  // ── Başlat ────────────────────────────────────────────────────────────────
+  initChart();
+  drawGauge(0);
+  drawServo(0);
+  startDemo();
+</script>
+</body>
+</html>
